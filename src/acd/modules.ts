@@ -23,8 +23,6 @@
 import { CompsDb, Comp, attributes } from './comps';
 import { Module } from '../model';
 
-const KIND_MODULE = 0xa4;
-
 /** CIP device profile (product type) names from the CIP specification. */
 const PRODUCT_TYPES: Record<number, string> = {
   0: 'Generic Device', 2: 'AC Drive', 3: 'Motor Overload', 4: 'Limit Switch', 5: 'Inductive Proximity Switch',
@@ -87,7 +85,7 @@ export function decodeModules(
 ): Module[] {
   const coll = comps.findByName('RxMapDeviceCollection');
   if (!coll) return [];
-  const mods = comps.childrenOf(coll.id).filter(c => c.kind === KIND_MODULE);
+  const mods = comps.childrenOf(coll.id).filter(c => c.kind === comps.kinds.Module);
   const byCommentId = new Map<number, Comp>();
   for (const m of mods) if (m.body.length >= 14) byCommentId.set(m.body.readUInt16LE(12), m);
   const records = portRecords(comps);
