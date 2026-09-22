@@ -132,7 +132,12 @@ export function reportSafetyCoverage(c: Controller): void {
     return;
   }
   if (!c.programs.some(p => p.safety)) c.warnings.push('Safety task found but no safety program: safety checks cover only safety-class tags and AOIs.');
-  if (!safetyTags) c.warnings.push('Safety task found but no safety-class tags were decoded: SAFETY.md relies on the safety program scope only.');
+  if (!safetyTags) {
+    const major = Number(/v(\d+)\./.exec(c.softwareVersion ?? '')?.[1] ?? 0);
+    const why = c.source === 'ACD' && major && major < 31
+      ? ` (a V${major} .ACD does not record tag class; open an .L5X export for controller-scope safety tags)` : '';
+    c.warnings.push(`Safety task found but no safety-class tags were decoded${why}: SAFETY.md relies on the safety program scope only.`);
+  }
   if (!c.safetyTagMap?.length && c.tags.some(t => t.safety)) {
     c.warnings.push('No safety tag map found: safety tags filled by mapping may be reported as "read but never produced".');
   }
