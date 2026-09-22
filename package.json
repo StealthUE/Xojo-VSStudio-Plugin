@@ -1,0 +1,223 @@
+{
+  "name": "vs-studio5000",
+  "publisher": "MassiveDynamicEngineering",
+  "displayName": "VS Studio 5000",
+  "description": "Read Rockwell Studio 5000 Logix Designer projects (.ACD and .L5X) in VS Code: ladder and Structured Text as text, AOIs, I/O tree, tag cross reference, safety checks, AI-ready docs, and edits packaged as L5X for import.",
+  "version": "0.3.0",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/StealthUE/Xojo-VSStudio-Plugin"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "Studio 5000",
+    "Logix",
+    "RSLogix",
+    "ACD",
+    "L5X",
+    "PLC",
+    "ladder",
+    "structured text",
+    "Allen-Bradley",
+    "ControlLogix",
+    "GuardLogix"
+  ],
+  "icon": "resources/studio5000_logo.png",
+  "activationEvents": [
+    "workspaceContains:**/*.ACD",
+    "workspaceContains:**/*.acd",
+    "workspaceContains:**/*.L5X",
+    "workspaceContains:**/*.l5x"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "VS Studio 5000",
+      "properties": {
+        "studio5000.aiTool": {
+          "type": "string",
+          "default": "Claude Code",
+          "enum": ["All", "Claude Code", "Cline", "Cursor", "GitHub Copilot", "None"],
+          "enumDescriptions": [
+            "Write context files for every AI tool",
+            "Write CLAUDE.md only",
+            "Write .clinerules only",
+            "Write .cursorrules only",
+            "Write .github/copilot-instructions.md only",
+            "Do not write AI context files"
+          ],
+          "description": "Which AI assistant to write project guide files for, in each workspace folder that contains a project."
+        },
+        "studio5000.guardProjectFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Add Claude Code deny rules to .claude/settings.json so the AI cannot read the binary .ACD directly and works from the export instead."
+        },
+        "studio5000.exportLocation": {
+          "type": "string",
+          "default": "globalStorage",
+          "enum": ["globalStorage", "workspace"],
+          "enumDescriptions": [
+            "Keep exports in the extension's global storage, outside the workspace",
+            "Write exports to .studio5000/ in the workspace folder, next to the project (add it to .gitignore)"
+          ],
+          "description": "Where the readable export of each project is written."
+        },
+        "studio5000.autoExport": {
+          "type": "boolean",
+          "default": true,
+          "description": "Export every .ACD / .L5X in the workspace on startup, and re-export one when it changes on disk."
+        },
+        "studio5000.safety.namePattern": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Opt-in. Regular expression (case-insensitive) for operand names to treat as safety-related even without a safety class. Empty (default): safety comes only from the project itself — the safety task and its programs, safety-class tags and AOIs, safety I/O and the safety tag map. Example: `^SAFE_`."
+        },
+        "studio5000.safety.deviceAoiPattern": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Opt-in. Regular expression for AOI names to treat as safety devices in `SAFETY.md`, besides safety-class AOIs and AOIs called from safety programs (which always are). Empty by default."
+        },
+        "studio5000.safety.sinkPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "markdownDescription": "Regular expressions for operands that count as \"the safety signal reaches something that acts\", highest priority first (e.g. a global E-stop bit or a contactor zone result). Output and safety-output module tags (`:O`, `:SO`) always count and rank first. Example: `[\"Global_EMS\", \"Contactor.*\\\\.S_On$\"]`."
+        },
+        "studio5000.safety.resultMemberPattern": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Opt-in. Regular expression for a safety AOI's result member in the caller's tag (e.g. `\\.S_On$`). Empty (default): a device is judged on all its outputs — flagged only when none of them is read, and checked for bypasses and reaching an output on each output that is read."
+        },
+        "studio5000.safety.mappedCopyPattern": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Opt-in. Regular expression for tag names filled by safety tag mapping (for example `^NON_SAFE_`). Normally not needed: the safety tag map is read from both `.ACD` and `.L5X`."
+        }
+      }
+    },
+    "customEditors": [
+      {
+        "viewType": "studio5000.projectEditor",
+        "displayName": "Studio 5000 Project",
+        "selector": [
+          { "filenamePattern": "*.ACD" },
+          { "filenamePattern": "*.acd" }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "studio5000.l5xEditor",
+        "displayName": "Studio 5000 Project (L5X summary)",
+        "selector": [
+          { "filenamePattern": "*.L5X" },
+          { "filenamePattern": "*.l5x" }
+        ],
+        "priority": "option"
+      }
+    ],
+    "languages": [
+      {
+        "id": "rll",
+        "aliases": ["Logix Ladder (neutral text)", "rll"],
+        "extensions": [".rll"],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "logix-st",
+        "aliases": ["Logix Structured Text", "logix-st"],
+        "extensions": [".st"],
+        "configuration": "./st-language-configuration.json"
+      },
+      {
+        "id": "xml",
+        "extensions": [".L5X", ".l5x"]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rll",
+        "scopeName": "source.rll",
+        "path": "./syntaxes/rll.tmLanguage.json"
+      },
+      {
+        "language": "logix-st",
+        "scopeName": "source.logix-st",
+        "path": "./syntaxes/st.tmLanguage.json"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "studio5000Explorer",
+          "name": "Studio 5000",
+          "contextualTitle": "Studio 5000 Controller Organizer",
+          "when": "studio5000.hasProjects"
+        }
+      ]
+    },
+    "commands": [
+      { "command": "studio5000.openProject", "title": "Studio 5000: Open Project", "icon": "$(folder-opened)" },
+      { "command": "studio5000.reexport", "title": "Studio 5000: Re-export Project", "icon": "$(refresh)" },
+      { "command": "studio5000.openCodebase", "title": "Studio 5000: Open CODEBASE.md", "icon": "$(book)" },
+      { "command": "studio5000.openExportFolder", "title": "Studio 5000: Open Export Folder", "icon": "$(folder)" },
+      { "command": "studio5000.buildL5x", "title": "Studio 5000: Build L5X Import from Edits", "icon": "$(package)" },
+      { "command": "studio5000.discardEdits", "title": "Studio 5000: Discard Edits", "icon": "$(discard)" },
+      { "command": "studio5000.findTagUsage", "title": "Studio 5000: Find Tag Usage", "icon": "$(references)" },
+      { "command": "studio5000.openRoutine", "title": "Open Routine" },
+      { "command": "studio5000.showLog", "title": "Studio 5000: Show Activity Log", "icon": "$(output)" },
+      { "command": "studio5000.cleanExports", "title": "Studio 5000: Clean Up Exports", "icon": "$(trash)" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "studio5000.buildL5x", "when": "view == studio5000Explorer", "group": "navigation@1" },
+        { "command": "studio5000.reexport", "when": "view == studio5000Explorer", "group": "navigation@2" },
+        { "command": "studio5000.openCodebase", "when": "view == studio5000Explorer", "group": "navigation@3" },
+        { "command": "studio5000.openExportFolder", "when": "view == studio5000Explorer", "group": "navigation@4" },
+        { "command": "studio5000.discardEdits", "when": "view == studio5000Explorer", "group": "overflow@1" },
+        { "command": "studio5000.showLog", "when": "view == studio5000Explorer", "group": "navigation@5" },
+        { "command": "studio5000.cleanExports", "when": "view == studio5000Explorer", "group": "overflow@3" }
+      ],
+      "view/item/context": [
+        { "command": "studio5000.reexport", "when": "view == studio5000Explorer && viewItem == project", "group": "inline" },
+        { "command": "studio5000.openCodebase", "when": "view == studio5000Explorer && viewItem == project", "group": "1@1" },
+        { "command": "studio5000.findTagUsage", "when": "view == studio5000Explorer && viewItem == tag", "group": "inline" }
+      ],
+      "explorer/context": [
+        { "command": "studio5000.openProject", "when": "resourceExtname =~ /^\\.(acd|ACD|l5x|L5X)$/", "group": "7_modification" }
+      ],
+      "editor/context": [
+        { "command": "studio5000.findTagUsage", "when": "editorLangId == rll || editorLangId == logix-st", "group": "navigation@9" }
+      ],
+      "commandPalette": [
+        { "command": "studio5000.openRoutine", "when": "false" }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "npm run compile && node scripts/node-tests.js",
+    "package": "vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^5.49.0",
+    "@typescript-eslint/parser": "^5.49.0",
+    "eslint": "^8.34.0",
+    "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.2.5"
+  }
+}
