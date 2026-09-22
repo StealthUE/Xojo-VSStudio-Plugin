@@ -13,6 +13,7 @@ import {
 } from '../model';
 import { renderFbd, renderSfc } from './graphical';
 import { vendorName } from '../acd/modules';
+import { productName } from '../acd/infoXml';
 import { separateUnused } from '../export/unused';
 import { reportSafetyCoverage } from '../export/analysis';
 
@@ -176,7 +177,7 @@ export function parseL5xString(xml: string, filePath = '<string>'): Controller {
   c.description = textOf(ctl.Description);
   c.processorType = ctl.ProcessorType;
   c.revision = ctl.MajorRev !== undefined ? `${ctl.MajorRev}.${ctl.MinorRev ?? 0}` : undefined;
-  c.softwareVersion = root.SoftwareRevision ? `Studio 5000 v${root.SoftwareRevision}` : undefined;
+  c.softwareVersion = root.SoftwareRevision ? productName(String(root.SoftwareRevision)) : undefined;
   if (ctl.Use && ctl.Use !== 'Target') {
     c.warnings.push(`This L5X is a partial export (target: ${root.TargetType ?? '?'} ${root.TargetName ?? ''}); only the exported part is shown.`);
   }
