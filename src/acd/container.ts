@@ -5,7 +5,8 @@
  *
  *   [Version.Log text][TextualVersionInfo.Dat][0x1A][BinaryVersionInfo.Dat][ProjectTemplate.ACD]
  *   [QuickInfo.XML.gz][TagInfo.XML.gz][Comps.Dat.gz][Comps.Idx.gz] ... [FileInfo.Dat]
- *   [directory: count × 528-byte entries][u32 count][u32 magic 0x0E7C]
+ *   [directory: count × 528-byte entries][u32 count][u32 trailer, version-dependent:
+ *   0x0E7C in V31, 0x0E57 in V30 — not used for detection]
  *
  * Each directory entry is a 260-char UTF-16 name, then u32 length, then u32 offset.
  * Embedded files are gzip streams when they start with 1F 8B, otherwise stored raw.
@@ -43,21 +44,26 @@ export class AcdContainer {
     const count = raw.readUInt32LE(raw.length - 8);
     const magic = raw.readUInt32LE(raw.length - 4);
     const dirStart = raw.length - 8 - count * ENTRY_SIZE;
-    if (magic !== ACD_DIR_MAGIC || count === 0 || count > 1000 || dirStart < 0) {
-      throw new Error(
-        `Not a recognised ACD file: directory trailer magic 0x${magic.toString(16)} (expected 0x${ACD_DIR_MAGIC.toString(16)}).`
-      );
-    }
+    const notAcd = (why: string) =>
+      new Error(`Not a recognised ACD file: ${why} (directory trailer 0x${magic.toString(16)}, ${count} entries).`);
+    // The trailer u32 is not a fixed magic: it varies by version (V31 writes 0x0E7C, V30
+    // 0x0E57), so it is not checked. The directory itself is validated instead: every
+    // entry named and inside the file, and a Comps.Dat present.
+    if (count === 0 || count > 1000 || dirStart < 0) throw notAcd('no file directory at the end');
     const entries: AcdEntry[] = [];
     for (let i = 0; i < count; i++) {
       const e = dirStart + i * ENTRY_SIZE;
       const name = raw.toString('utf16le', e, e + NAME_BYTES).split('\u0000')[0] ?? '';
       const length = raw.readUInt32LE(e + NAME_BYTES);
       const offset = raw.readUInt32LE(e + NAME_BYTES + 4);
-      if (offset + length > raw.length) {
+      if (!/^[\x20-\x7e]+$/.test(name)) throw notAcd(`directory entry ${i} has no valid name`);
+      if (offset + length > dirStart) {
         throw new Error(`ACD directory entry ${name} points outside the file.`);
       }
       entries.push({ name, offset, length });
+    }
+    if (!entries.some(e => e.name.toLowerCase() === 'comps.dat')) {
+      throw notAcd('directory has no Comps.Dat');
     }
     return new AcdContainer(filePath, raw, entries);
   }
