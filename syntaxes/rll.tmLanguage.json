@@ -1,0 +1,82 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Logix Ladder (neutral text)",
+  "scopeName": "source.rll",
+  "patterns": [
+    { "include": "#metadata" },
+    { "include": "#rungComment" },
+    { "include": "#rungMarker" },
+    { "include": "#comment" },
+    { "include": "#instruction" },
+    { "include": "#branch" },
+    { "include": "#terminator" }
+  ],
+  "repository": {
+    "metadata": {
+      "match": "^\\s*(//)\\s*(@\\w+)\\s?(.*)$",
+      "captures": {
+        "1": { "name": "comment.line.double-slash.rll" },
+        "2": { "name": "keyword.other.metadata.rll" },
+        "3": { "name": "string.unquoted.metadata.rll" }
+      }
+    },
+    "rungComment": {
+      "match": "^\\s*(//\\s?>)(.*)$",
+      "captures": {
+        "1": { "name": "punctuation.definition.comment.rll" },
+        "2": { "name": "comment.block.documentation.rll" }
+      }
+    },
+    "rungMarker": {
+      "match": "^\\s*//\\s*-+\\s*Rung\\s+\\d+\\s*-+\\s*$",
+      "name": "markup.heading.rung.rll"
+    },
+    "comment": {
+      "match": "//.*$",
+      "name": "comment.line.double-slash.rll"
+    },
+    "instruction": {
+      "begin": "\\b(XIC|XIO)\\s*(\\()|\\b(OTE|OTL|OTU|ONS|OSR|OSF)\\s*(\\()|\\b(JSR|SBR|RET|JMP|LBL|TND|MCR|AFI|NOP|EVENT|UID|UIE)\\s*(\\()|\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.contact.rll" },
+        "2": { "name": "punctuation.section.parens.begin.rll" },
+        "3": { "name": "keyword.control.coil.rll" },
+        "4": { "name": "punctuation.section.parens.begin.rll" },
+        "5": { "name": "keyword.control.flow.rll" },
+        "6": { "name": "punctuation.section.parens.begin.rll" },
+        "7": { "name": "entity.name.function.instruction.rll" },
+        "8": { "name": "punctuation.section.parens.begin.rll" }
+      },
+      "end": "\\)",
+      "endCaptures": { "0": { "name": "punctuation.section.parens.end.rll" } },
+      "patterns": [ { "include": "#operand" } ]
+    },
+    "operand": {
+      "patterns": [
+        { "match": "\\?", "name": "constant.language.unspecified.rll" },
+        { "match": "\\b(16#[0-9A-Fa-f_]+|8#[0-7_]+|2#[01_]+)\\b", "name": "constant.numeric.radix.rll" },
+        { "match": "(?<![A-Za-z0-9_.])[-+]?\\d+(\\.\\d+)?([eE][-+]?\\d+)?(?![A-Za-z_])", "name": "constant.numeric.rll" },
+        { "match": "'[^']*'", "name": "string.quoted.single.rll" },
+        { "match": "\\\\[A-Za-z_][A-Za-z0-9_]*", "name": "entity.name.namespace.program.rll" },
+        { "match": "\\b(AND|OR|XOR|NOT|MOD|ABS|SQR|SIN|COS|TAN|LN|LOG)\\b", "name": "keyword.operator.word.rll" },
+        { "match": "[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z0-9_]+)*", "name": "variable.other.tag.rll" },
+        { "match": "\\.", "name": "punctuation.accessor.rll" },
+        { "match": "[\\[\\]]", "name": "punctuation.section.brackets.index.rll" },
+        { "match": ",", "name": "punctuation.separator.operand.rll" },
+        { "match": "[-+*/=<>&|]+", "name": "keyword.operator.rll" },
+        { "begin": "\\(", "end": "\\)", "patterns": [ { "include": "#operand" } ] }
+      ]
+    },
+    "branch": {
+      "patterns": [
+        { "match": "\\[", "name": "keyword.operator.branch.open.rll" },
+        { "match": "\\]", "name": "keyword.operator.branch.close.rll" },
+        { "match": ",", "name": "keyword.operator.branch.leg.rll" }
+      ]
+    },
+    "terminator": {
+      "match": ";",
+      "name": "punctuation.terminator.rung.rll"
+    }
+  }
+}
