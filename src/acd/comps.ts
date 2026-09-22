@@ -18,6 +18,10 @@
 
 import { datRecords, utf16z } from './datDb';
 
+/**
+ * Kind codes as written by V31. They shift between versions (V30: Routine 0x32, Tag 0x3c,
+ * Module 0xa2), so decoding uses CompsDb.kinds, learned from the file; these are fallbacks.
+ */
 export const CompKind = {
   Collection: 0x00,
   RegionMap: 0x01,
@@ -25,7 +29,19 @@ export const CompKind = {
   ProgramOrAoi: 0x13,
   Routine: 0x35,
   Tag: 0x3e,
+  Module: 0xa4,
 } as const;
+
+export type LearnedKinds = { Task: number; ProgramOrAoi: number; Routine: number; Tag: number; Module: number };
+
+/** The collection that holds each object type; the commonest child kind there is its code. */
+const KIND_COLLECTIONS: Record<keyof LearnedKinds, string> = {
+  Task: 'RxTaskCollection',
+  ProgramOrAoi: 'RxProgramCollection',
+  Routine: 'RxRoutineCollection',
+  Tag: 'RxTagCollection',
+  Module: 'RxMapDeviceCollection',
+};
 
 const BODY = 154;
 
@@ -55,6 +71,27 @@ export class CompsDb {
       };
       this.byId.set(comp.id, comp);
     }
+    this.kinds = this.learnKinds();
+  }
+
+  /** Kind codes of this file's version (see CompKind). */
+  readonly kinds: LearnedKinds;
+
+  private learnKinds(): LearnedKinds {
+    const tally = new Map<string, Map<number, number>>();
+    for (const c of this.byId.values()) {
+      const parent = this.byId.get(c.parentId)?.name;
+      if (!parent?.startsWith('Rx')) continue;
+      let t = tally.get(parent);
+      if (!t) tally.set(parent, (t = new Map()));
+      t.set(c.kind, (t.get(c.kind) ?? 0) + 1);
+    }
+    const out = { ...CompKind } as LearnedKinds;
+    for (const key of Object.keys(KIND_COLLECTIONS) as (keyof LearnedKinds)[]) {
+      const t = tally.get(KIND_COLLECTIONS[key]);
+      if (t?.size) out[key] = [...t].sort((a, b) => b[1] - a[1])[0]![0];
+    }
+    return out;
   }
 
   get(id: number): Comp | undefined {
@@ -139,7 +176,7 @@ export interface RegionMapEntry {
 export function regionMap(comps: CompsDb): RegionMapEntry[] {
   let map: Comp | undefined;
   for (const c of comps.byId.values()) {
-    if (c.name === 'Region Map' && c.parentId === 0 && c.kind === CompKind.RegionMap) {
+    if (c.name === 'Region Map' && c.parentId === 0) {
       if (!map || c.body.length > map.body.length) map = c;
     }
   }
