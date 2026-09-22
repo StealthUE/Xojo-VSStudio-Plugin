@@ -18,7 +18,7 @@
 import * as path from 'path';
 import { AcdContainer } from './container';
 import {
-  CompsDb, Comp, CompKind, attributes, commentMemberKey, commentParentKey,
+  CompsDb, Comp, attributes, commentMemberKey, commentParentKey,
   regionMap, routineTypeCode, scheduleId,
 } from './comps';
 import { CommentIndex, commentRecords, regionCommentKeys, resolveRefs, rungTexts } from './logic';
@@ -142,6 +142,9 @@ export function decodeContainer(acd: AcdContainer): DecodeResult {
           'ST source text for this routine was not found in the ACD. ' +
           'Export the program to .L5X from Studio 5000 and open that to read it.';
       }
+    } else if (routineTypeCode(r) === 0) {
+      // Seen on routines with no logic at all (V30 "NOT_USED" shells): no type code, no rungs.
+      routine.undecoded = 'This routine has no logic stored in the ACD (it is empty, or its type is not recorded).';
     } else {
       routine.undecoded =
         `${type} logic is stored in the ACD only in compiled form. ` +
@@ -152,13 +155,13 @@ export function decodeContainer(acd: AcdContainer): DecodeResult {
 
   const routinesOf = (owner: Comp): Routine[] => {
     const coll = comps.collection(owner.id, 'RxRoutineCollection');
-    return coll ? comps.childrenOf(coll.id).filter(x => x.kind === CompKind.Routine).map(buildRoutine) : [];
+    return coll ? comps.childrenOf(coll.id).filter(x => x.kind === comps.kinds.Routine).map(buildRoutine) : [];
   };
 
   // --- Programs ------------------------------------------------------------------------
   const programColl = comps.findByName('RxProgramCollection');
   const programComps = programColl
-    ? comps.childrenOf(programColl.id).filter(x => x.kind === CompKind.ProgramOrAoi)
+    ? comps.childrenOf(programColl.id).filter(x => x.kind === comps.kinds.ProgramOrAoi)
     : [];
   if (!programColl) warn('RxProgramCollection not found: no programs decoded.');
   const programBySchedule = new Map<number, string>();
@@ -188,7 +191,7 @@ export function decodeContainer(acd: AcdContainer): DecodeResult {
 
   // --- Tasks ---------------------------------------------------------------------------
   const taskColl = comps.findByName('RxTaskCollection');
-  for (const tc of taskColl ? comps.childrenOf(taskColl.id).filter(x => x.kind === CompKind.Task) : []) {
+  for (const tc of taskColl ? comps.childrenOf(taskColl.id).filter(x => x.kind === comps.kinds.Task) : []) {
     c.tasks.push(decodeTask(tc, programBySchedule, warn));
   }
 
@@ -203,7 +206,7 @@ export function decodeContainer(acd: AcdContainer): DecodeResult {
   try {
     if (acd.has('Nameless.Dat')) idLists = orderedIdLists(acd.read('Nameless.Dat'));
   } catch { /* reported with the ST source above */ }
-  for (const ac of aoiColl ? comps.childrenOf(aoiColl.id).filter(x => x.kind === CompKind.ProgramOrAoi) : []) {
+  for (const ac of aoiColl ? comps.childrenOf(aoiColl.id).filter(x => x.kind === comps.kinds.ProgramOrAoi) : []) {
     const def = typesByName.get(ac.name);
     const decl = aoiTags(comps, ac, def?.members ?? [], idLists, comments);
     // Stored definition order is exact; otherwise infer it from call sites (aoiOrder.ts).
@@ -247,7 +250,7 @@ export function decodeContainer(acd: AcdContainer): DecodeResult {
     for (const m of c.modules) if (safetyConn.has(m.name.toLowerCase())) m.safety = true;
     // The controller's own safety partner has no module record, only its __Map tag.
     const partner = `${c.name}:Partner`;
-    const partnerTag = [...comps.byId.values()].some(x => x.kind === CompKind.Tag && x.name === `__Map:${partner}`);
+    const partnerTag = [...comps.byId.values()].some(x => x.kind === comps.kinds.Tag && x.name === `__Map:${partner}`);
     if (partnerTag && !c.modules.some(m => m.name === partner)) {
       c.modules.push({ name: partner, parent: 'Local', description: 'Safety partner of this controller (from its connection tag; the ACD keeps no module record for it)' });
     }
@@ -325,7 +328,7 @@ function aoiTags(comps: CompsDb, aoi: Comp, members: Member[], idLists: number[]
   if (!coll) return undefined;
   const byName = new Map(members.map(m => [m.name.toLowerCase(), m]));
   const decls = comps.childrenOf(coll.id)
-    .filter(t => t.kind === CompKind.Tag && !t.name.startsWith('$') && t.body.length >= 18)
+    .filter(t => t.kind === comps.kinds.Tag && !t.name.startsWith('$') && t.body.length >= 18)
     .map(t => ({ t, index: t.body.readUInt16LE(16), flags: attributes(t).get(0x01)?.[526] }))
     .filter(d => d.flags !== undefined)
     .sort((a, b) => a.index - b.index);
@@ -430,14 +433,16 @@ const SAFETY_CLASS = 6;
  */
 function applyTagFlags(comps: CompsDb, coll: Comp | undefined, tags: Tag[]): void {
   if (!coll || !tags.length) return;
-  const records = new Map(comps.childrenOf(coll.id).filter(t => t.kind === CompKind.Tag).map(t => [t.name.toLowerCase(), t]));
+  const records = new Map(comps.childrenOf(coll.id).filter(t => t.kind === comps.kinds.Tag).map(t => [t.name.toLowerCase(), t]));
   for (const tag of tags) {
     const rec = records.get(tag.name.toLowerCase());
     if (!rec) continue;
     const attrs = attributes(rec);
     const a = attrs.get(0x01);
-    if (a && a.length > 589) {
-      if (a[589]! & 1) tag.safety = true;
+    // V30 records are 589 bytes and end before the safety byte, which V31 added; no other
+    // byte in them carries the class. Constant and access sit at the same place in both.
+    if (a && a.length > 589 && a[589]! & 1) tag.safety = true;
+    if (a && a.length > 543) {
       if (a[543]! & 1) tag.constant = true;
       const access = a[542]! & 3;
       tag.externalAccess = access === 0 ? 'Read/Write' : access === 2 ? 'Read Only' : undefined;
