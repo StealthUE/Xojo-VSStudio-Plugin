@@ -47,13 +47,24 @@ export interface QuickInfo {
   productCode?: number;
 }
 
+/**
+ * Every version writes "RSLogix 5000 vNN.NN" here, but from V21 the product is
+ * Studio 5000 Logix Designer, so the name is chosen from the major version.
+ */
+export function productName(swVersion: string | undefined): string | undefined {
+  const m = /v?(\d+)\.(\d+)/.exec(swVersion ?? '');
+  if (!m) return swVersion;
+  const product = Number(m[1]) >= 21 ? 'Studio 5000 Logix Designer' : 'RSLogix 5000';
+  return `${product} v${m[1]}.${m[2]}`;
+}
+
 export function parseQuickInfo(xml: string): QuickInfo {
   const root: X = parser.parse(xml)?.LogixQuickInfo ?? {};
   const id: X = root.DeviceIdentity ?? {};
   return {
     name: root.Name ?? '',
     description: text(root.Description),
-    softwareVersion: root.SWVersion?.String,
+    softwareVersion: productName(root.SWVersion?.String),
     revision: id.MajorRevision !== undefined ? `${id.MajorRevision}.${id.MinorRevision ?? 0}` : undefined,
     productCode: id.ProductCode !== undefined ? Number(id.ProductCode) : undefined,
   };
